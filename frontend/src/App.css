@@ -43,6 +43,50 @@ body {
   background: rgba(147, 51, 234, 0.7);
 }
 
+/* Mobile-specific optimizations */
+@media (max-width: 1023px) {
+  .svg-logo-container {
+    max-width: 100% !important;
+    padding: 0 1rem;
+  }
+  
+  .svg-logo-container svg {
+    transform: scale(0.8) !important;
+    max-width: 100%;
+  }
+  
+  /* Ensure proper spacing on mobile */
+  body {
+    padding: 0;
+    margin: 0;
+  }
+  
+  /* Adjust main content padding for mobile */
+  .relative.z-10.min-h-screen {
+    padding: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .svg-logo-container svg {
+    transform: scale(0.6) !important;
+  }
+  
+  /* Smaller text on very small screens */
+  .text-lg {
+    font-size: 1rem !important;
+  }
+  
+  /* Adjust spacing for very small screens */
+  .min-h-\[40vh\] {
+    min-height: 35vh !important;
+  }
+  
+  .min-h-\[60vh\] {
+    min-height: 65vh !important;
+  }
+}
+
 /* Backdrop blur fallback */
 @supports not (backdrop-filter: blur(10px)) {
   .backdrop-blur-sm {

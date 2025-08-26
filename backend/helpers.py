@@ -5,26 +5,49 @@ import logging
 logger = logging.getLogger(__name__)
 
 def generate_srt(segments, srt_path):
-    """Generate SRT subtitle file from Whisper segments"""
+    """Generate SRT subtitle file from Whisper segments with shorter text chunks"""
     try:
         with open(srt_path, "w", encoding="utf-8") as srt_file:
             subtitle_index = 1
             
             for segment in segments:
-                start_time = format_time(segment['start'])
-                end_time = format_time(segment['end'])
                 text = segment['text'].strip()
                 
                 # Skip empty segments
                 if not text:
                     continue
                 
-                # Write SRT format: index, timestamps, text, blank line
-                srt_file.write(f"{subtitle_index}\n")
-                srt_file.write(f"{start_time} --> {end_time}\n")
-                srt_file.write(f"{text}\n\n")
+                # Split long text into shorter chunks (max 6-8 words per subtitle)
+                words = text.split()
+                max_words_per_subtitle = 7
                 
-                subtitle_index += 1
+                # If segment has few words, keep as is
+                if len(words) <= max_words_per_subtitle:
+                    start_time = format_time(segment['start'])
+                    end_time = format_time(segment['end'])
+                    
+                    srt_file.write(f"{subtitle_index}\n")
+                    srt_file.write(f"{start_time} --> {end_time}\n")
+                    srt_file.write(f"{text}\n\n")
+                    subtitle_index += 1
+                else:
+                    # Split into smaller chunks
+                    total_duration = segment['end'] - segment['start']
+                    chunks = [words[i:i + max_words_per_subtitle] for i in range(0, len(words), max_words_per_subtitle)]
+                    chunk_duration = total_duration / len(chunks)
+                    
+                    for i, chunk in enumerate(chunks):
+                        chunk_text = ' '.join(chunk)
+                        chunk_start = segment['start'] + (i * chunk_duration)
+                        chunk_end = min(segment['start'] + ((i + 1) * chunk_duration), segment['end'])
+                        
+                        start_time = format_time(chunk_start)
+                        end_time = format_time(chunk_end)
+                        
+                        srt_file.write(f"{subtitle_index}\n")
+                        srt_file.write(f"{start_time} --> {end_time}\n")
+                        srt_file.write(f"{chunk_text}\n\n")
+                        subtitle_index += 1
         
         logger.info(f"SRT file generated successfully: {srt_path}")
         
@@ -99,10 +122,10 @@ def overlay_subtitles(input_path, srt_path, output_path):
             'ffmpeg',
             '-y',  # Overwrite output file without asking
             '-i', input_path,  # Input video
-            '-vf', f"subtitles='{srt_filter_path}':force_style='FontSize=15,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=60,MarginL=20,MarginR=20,Alignment=2,FontName=Arial Bold,Bold=1'",
+            '-vf', f"subtitles='{srt_filter_path}':force_style='FontSize=13,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=18,MarginL=20,MarginR=20,Alignment=2,FontName=Arial Bold,Bold=1'",
             '-c:a', 'copy',  # Copy audio stream without re-encoding
             '-c:v', 'libx264',  # Use H.264 video codec
-            '-preset', 'medium',  # Balance between speed and compression
+            '-preset', 'medium',  # Balance between speed and compressionwrap
             '-crf', '23',  # Constant Rate Factor - good quality
             '-movflags', '+faststart',  # Optimize for web streaming
             '-max_muxing_queue_size', '9999',  # Handle large files

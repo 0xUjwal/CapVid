@@ -129,17 +129,21 @@ function App() {
         <Spline scene="https://prod.spline.design/y-a25jUyL3qY3NA7/scene.splinecode" />
       </div>
       
-      {/* Main Content Layout */}
-      <div className="relative z-10 min-h-screen flex">
+      {/* Main Content Layout - Responsive */}
+      <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
         <ErrorBoundary>
-          {/* Left Side - Logo and Text (Always Visible) */}
-          <div className="flex-1 flex flex-col justify-center items-center pl-28 pr-8">
-            <div className="w-full max-w-6xl flex flex-col items-start">
+          {/* Logo and Text Section */}
+          <div className="flex-1 flex flex-col justify-center items-center 
+                         px-4 py-8 lg:pl-28 lg:pr-8 lg:py-0
+                         min-h-[40vh] lg:min-h-screen">
+            <div className="w-full max-w-6xl flex flex-col items-center lg:items-start
+                           text-center lg:text-left">
               {/* SVG Animated Logo */}
-              <SVGAnimatedLogo className="mb-4 w-full" />
+              <SVGAnimatedLogo className="mb-4 w-full max-w-lg lg:max-w-none" />
               
               <p 
-                className="text-xl md:text-2xl text-gray-200 opacity-90 leading-relaxed text-left"
+                className="text-lg sm:text-xl md:text-2xl text-gray-200 opacity-90 
+                          leading-relaxed px-4 lg:px-0"
                 style={{ fontFamily: 'Urbanist, sans-serif' }}
               >
                 AI based video captioning service
@@ -147,8 +151,10 @@ function App() {
             </div>
           </div>
           
-          {/* Right Side - Upload Form or Status Display */}
-          <div className="flex-1 flex flex-col justify-center items-center pr-16 pl-8">
+          {/* Upload Form or Status Display Section */}
+          <div className="flex-1 flex flex-col justify-center items-center 
+                         px-4 py-8 lg:pr-16 lg:pl-8 lg:py-0
+                         min-h-[60vh] lg:min-h-screen">
             <div className="w-full max-w-md">
               {!jobId ? (
                 <AnimatedUploadForm onSuccess={handleUploadSuccess} onError={handleUploadError} />

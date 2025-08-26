@@ -299,7 +299,7 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
 
   // Memoized drag zone classes
   const dragZoneClasses = useMemo(() => {
-    const baseClasses = "relative bg-white bg-opacity-10 backdrop-blur-md border-2 border-dashed rounded-3xl p-8 text-center transition-all duration-300 cursor-pointer";
+    const baseClasses = "relative bg-white bg-opacity-10 backdrop-blur-md border-2 border-dashed rounded-3xl p-4 sm:p-6 lg:p-8 text-center transition-all duration-300 cursor-pointer";
     
     if (dragActive) {
       return `${baseClasses} border-purple-400 bg-purple-900 bg-opacity-30 scale-105`;
@@ -312,7 +312,7 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
 
   // Memoized button classes
   const buttonClasses = useMemo(() => {
-    const baseClasses = "w-full mt-6 py-4 px-6 rounded-2xl font-semibold text-lg transition-all duration-300";
+    const baseClasses = "w-full mt-4 sm:mt-6 py-3 sm:py-4 px-4 sm:px-6 rounded-2xl font-semibold text-base sm:text-lg transition-all duration-300";
     
     if (!file || uploading) {
       return `${baseClasses} bg-gray-600 bg-opacity-50 cursor-not-allowed text-gray-400`;
@@ -376,12 +376,12 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
           }}
         >
           {!file ? (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Upload Icon */}
-              <div className="flex justify-center mb-4" aria-hidden="true">
-                <div className="w-24 h-24 rounded-full bg-purple-500/20 flex items-center justify-center">
+              <div className="flex justify-center mb-3 sm:mb-4" aria-hidden="true">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full bg-purple-500/20 flex items-center justify-center">
                   <svg 
-                    className="w-12 h-12 text-white" 
+                    className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-white" 
                     fill="none" 
                     stroke="currentColor" 
                     viewBox="0 0 24 24"
@@ -399,13 +399,13 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
               
               <div>
                 <h3 
-                  className="text-3xl font-semibold text-white mb-2"
+                  className="text-xl sm:text-2xl lg:text-3xl font-semibold text-white mb-2"
                   style={{ fontFamily: 'Urbanist, sans-serif' }}
                 >
                   Upload Video
                 </h3>
                 <p 
-                  className="text-gray-600 text-sm mb-4"
+                  className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4"
                   style={{ fontFamily: 'Urbanist, sans-serif' }}
                 >
                   Drag and drop or click to browse
@@ -413,11 +413,11 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
               </div>
 
               {/* Supported Formats */}
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-1 sm:gap-2">
                 {FILE_CONSTRAINTS.allowedExtensions.map((format) => (
                   <span 
                     key={format}
-                    className="px-3 py-1 bg-white bg-opacity-20 text-black rounded-full text-xs font-medium"
+                    className="px-2 py-1 sm:px-3 bg-white bg-opacity-20 text-black rounded-full text-xs font-medium"
                     style={{ fontFamily: 'Urbanist, sans-serif' }}
                   >
                     {format}
@@ -426,7 +426,7 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
               </div>
 
               <p 
-                className="text-xs text-gray-400 mt-4"
+                className="text-xs text-gray-400 mt-3 sm:mt-4"
                 style={{ fontFamily: 'Urbanist, sans-serif' }}
               >
                 Maximum file size: {formatFileSize(FILE_CONSTRAINTS.maxSize)}

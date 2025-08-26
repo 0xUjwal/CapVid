@@ -31,10 +31,10 @@ const SVGAnimatedLogo = ({ className = '' }) => {
     <div className={`svg-logo-container ${className}`} style={{ 
       width: '100%', 
       maxWidth: '4800px',
-      transformOrigin: 'right',
+      transformOrigin: 'center',
       overflow: 'visible',
       display: 'flex',
-      justifyContent: 'flex-end'
+      justifyContent: 'center'
     }}>
       <svg 
         ref={svgRef}
@@ -49,7 +49,7 @@ const SVGAnimatedLogo = ({ className = '' }) => {
           width: '100%',
           maxWidth: '4800px',
           height: 'auto',
-          transform: 'scale(1.3)'
+          transform: 'scale(1.1)'
         }}
       >
         {/* C - Futuristic, angular C with cut corners */}

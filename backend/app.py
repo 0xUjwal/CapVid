@@ -12,17 +12,15 @@ import whisper
 import gc
 import psutil
 import logging
+import glob
 
 app = Flask(__name__)
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure CORS for Vercel frontend
+# Configure CORS for production and development
 CORS(app, 
      origins=[
          "https://capvid.app",
@@ -36,8 +34,8 @@ CORS(app,
      max_age=3600
 )
 
-# Use system temporary directory with size limit
-TEMP_STORAGE_LIMIT = 250 * 1024 * 1024  # 250MB in bytes
+# Storage configuration optimized for 4GB server
+TEMP_STORAGE_LIMIT = 200 * 1024 * 1024  # 200MB limit
 TEMP_BASE_DIR = tempfile.mkdtemp(prefix='capvid_')
 UPLOAD_FOLDER = os.path.join(TEMP_BASE_DIR, 'uploads')
 PROCESSED_FOLDER = os.path.join(TEMP_BASE_DIR, 'processed')
@@ -48,23 +46,20 @@ app.config['PROCESSED_FOLDER'] = PROCESSED_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
-# Thread-safe job management with longer retention
+# Thread-safe job management with extended retention
 job_status = {}
 file_timestamps = {}
-download_timestamps = {}  # Track when files were first downloaded
+download_timestamps = {}
 processing_lock = threading.Lock()
 
 # Global model to avoid reloading
 whisper_model = None
 model_load_lock = threading.Lock()
 
-# Allowed video file extensions
-ALLOWED_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.m4v', '.3gp', '.wmv'}
-
-def allowed_file(filename):
-    """Check if file extension is allowed"""
-    return '.' in filename and \
-           os.path.splitext(filename)[1].lower() in ALLOWED_EXTENSIONS
+@app.route("/")
+def home():
+    """Root endpoint to confirm API is running"""
+    return jsonify({"message": "🚀 CapVid API is running!"})
 
 def get_directory_size(directory):
     """Calculate total size of all files in directory"""
@@ -80,58 +75,40 @@ def get_directory_size(directory):
     return total_size
 
 def cleanup_old_files():
-    """Remove files older than 4 hours or when storage limit is exceeded"""
+    """Conservative cleanup - only remove very old completed jobs"""
     current_time = datetime.now()
-    cutoff_time = current_time - timedelta(hours=4)  # Increased to 4 hours retention
-    download_cutoff_time = current_time - timedelta(hours=1)  # Keep downloaded files for 1 hour
+    cutoff_time = current_time - timedelta(hours=6)  # Increased to 6 hours
+    download_cutoff_time = current_time - timedelta(hours=2)  # Keep downloaded files for 2 hours
     
-    # Get current storage usage
     total_size = get_directory_size(TEMP_BASE_DIR)
-    
     files_to_remove = []
     
-    # Only remove files older than 4 hours AND that are completed/failed
     with processing_lock:
+        # Only remove very old completed jobs
         for job_id, timestamp in list(file_timestamps.items()):
             if timestamp < cutoff_time:
-                # Only remove if job is completed, failed, or doesn't exist in status
-                if job_id not in job_status or job_status[job_id].get('status') in ['completed', 'failed', 'completed_srt_only']:
+                status = job_status.get(job_id, {}).get('status')
+                if status in ['completed', 'failed', 'completed_srt_only']:
                     files_to_remove.append(job_id)
-    
-    # Remove downloaded files older than 1 hour (but only if completed)
-    with processing_lock:
-        for job_id, download_time in list(download_timestamps.items()):
-            if download_time < download_cutoff_time and job_id not in files_to_remove:
-                # Only remove if job is completed
-                if job_id not in job_status or job_status[job_id].get('status') in ['completed', 'failed', 'completed_srt_only']:
-                    files_to_remove.append(job_id)
-    
-    # If still over limit, remove oldest completed jobs first (but keep recently downloaded and active jobs)
-    if total_size > TEMP_STORAGE_LIMIT:
-        with processing_lock:
-            completed_jobs = []
-            for job_id, status_info in job_status.items():
-                # Only consider truly completed jobs for removal
-                if status_info.get('status') in ['completed', 'failed', 'completed_srt_only']:
-                    if job_id in file_timestamps:
-                        # Don't remove recently downloaded files unless absolutely necessary
-                        if job_id not in download_timestamps or download_timestamps[job_id] < download_cutoff_time:
-                            completed_jobs.append((job_id, file_timestamps[job_id]))
-            
-            # Sort by timestamp and remove oldest completed jobs
-            completed_jobs.sort(key=lambda x: x[1])
-            for job_id, _ in completed_jobs:
-                if job_id not in files_to_remove:
-                    files_to_remove.append(job_id)
-                    # Check if we're under limit after adding this file
-                    if get_directory_size(TEMP_BASE_DIR) < TEMP_STORAGE_LIMIT * 0.8:
-                        break
+        
+        # If still over limit, remove old downloaded files
+        if total_size > TEMP_STORAGE_LIMIT and len(files_to_remove) < 3:
+            for job_id, download_time in list(download_timestamps.items()):
+                if download_time < download_cutoff_time:
+                    status = job_status.get(job_id, {}).get('status')
+                    if status in ['completed', 'failed', 'completed_srt_only'] and job_id not in files_to_remove:
+                        files_to_remove.append(job_id)
+                        if len(files_to_remove) >= 5:  # Limit cleanup batch size
+                            break
     
     # Remove identified files
     removed_count = 0
     for job_id in files_to_remove:
-        cleanup_job_files(job_id)
-        removed_count += 1
+        try:
+            cleanup_job_files(job_id)
+            removed_count += 1
+        except Exception as e:
+            logger.error(f"Error cleaning up job {job_id}: {e}")
     
     if removed_count > 0:
         logger.info(f"Cleanup completed: removed {removed_count} jobs")
@@ -140,7 +117,7 @@ def cleanup_job_files(job_id):
     """Remove all files associated with a job"""
     try:
         with processing_lock:
-            # Remove from status tracking
+            # Remove from tracking dictionaries
             if job_id in job_status:
                 logger.info(f"Removing job {job_id} from status tracking")
                 del job_status[job_id]
@@ -164,16 +141,15 @@ def cleanup_job_files(job_id):
         logger.error(f"Error cleaning up job {job_id}: {e}")
 
 def periodic_cleanup():
-    """Run cleanup every 60 minutes (increased from 30)"""
+    """Run cleanup every 2 hours - very conservative"""
     while True:
-        time.sleep(3600)  # 60 minutes - less frequent cleanup
+        time.sleep(7200)  # 2 hours
         try:
-            # Only run cleanup if we're actually running low on space
             current_usage = get_directory_size(TEMP_BASE_DIR)
             usage_percentage = (current_usage / TEMP_STORAGE_LIMIT) * 100
             
-            # Only cleanup if over 60% capacity OR if we have very old files
-            if usage_percentage > 60:
+            # Only cleanup if over 80% capacity
+            if usage_percentage > 80:
                 logger.info(f"Storage usage at {usage_percentage:.1f}%, running cleanup")
                 cleanup_old_files()
             else:
@@ -187,7 +163,7 @@ cleanup_thread = threading.Thread(target=periodic_cleanup, daemon=True)
 cleanup_thread.start()
 
 def load_whisper_model():
-    """Load Whisper model with memory optimization"""
+    """Load Whisper model with memory optimization for 4GB server"""
     global whisper_model
     
     with model_load_lock:
@@ -195,20 +171,20 @@ def load_whisper_model():
             return whisper_model
         
         try:
-            # Check available memory
             memory = psutil.virtual_memory()
             available_gb = memory.available / (1024**3)
             
             logger.info(f"Available memory: {available_gb:.1f}GB")
             
-            if available_gb < 1.0:  # Less than 1GB available
+            # Conservative model selection for 4GB server
+            if available_gb < 1.0:
                 model_name = "tiny"
                 logger.info("Using tiny model due to memory constraints")
             else:
                 model_name = "base"
                 logger.info("Using base model")
             
-            logger.info(f"Loading Whisper model: {model_name}")
+            logger.info(f"Attempting to load Whisper model: {model_name}")
             whisper_model = whisper.load_model(model_name)
             logger.info(f"Successfully loaded Whisper model: {model_name}")
             
@@ -216,7 +192,6 @@ def load_whisper_model():
             
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
-            # Fallback to tiny model
             try:
                 logger.info("Falling back to tiny model")
                 whisper_model = whisper.load_model("tiny")
@@ -226,34 +201,26 @@ def load_whisper_model():
                 logger.error(f"Failed to load fallback model: {fallback_error}")
                 raise
 
-@app.route('/')
-def home():
-    """Root endpoint to confirm API is running"""
-    return jsonify({"message": "🚀 CapVid API is running!"})
-
-def process_video_task(job_id, filepath, original_filename):
-    """Process video file: transcribe and add subtitles"""
+def process_video_task(job_id, filepath, filename):
+    """Process video with enhanced error handling and status persistence"""
     try:
         logger.info(f"Starting video processing for job {job_id}")
-        logger.info(f"Processing file: {filepath}")
-        logger.info(f"File size: {os.path.getsize(filepath)} bytes")
         
         # Log memory usage
         memory = psutil.virtual_memory()
         logger.info(f"Memory usage before processing: {memory.used / 1024 / 1024:.1f}MB")
         
         with processing_lock:
-            job_status[job_id] = {'status': 'transcribing', 'filename': original_filename}
+            job_status[job_id] = {'status': 'transcribing', 'filename': filename}
 
         # Load model
         model = load_whisper_model()
-        logger.info("Starting transcription")
+        logger.info(f"Starting transcription")
         
-        # Enhanced transcription with better error handling
         try:
             result = model.transcribe(
                 filepath,
-                language=None,  # Auto-detect language
+                language=None,
                 task="transcribe",
                 verbose=False,
                 word_timestamps=True,
@@ -263,91 +230,71 @@ def process_video_task(job_id, filepath, original_filename):
                 no_speech_threshold=0.6
             )
             
-            # Validate transcription result
             if not result or 'segments' not in result or not result['segments']:
-                raise Exception("No speech detected in the video or transcription failed")
-            
-            logger.info(f"Transcription completed. Found {len(result['segments'])} segments")
+                raise Exception("No speech detected in the video")
                 
         except Exception as transcribe_error:
             logger.error(f"Transcription failed for job {job_id}: {transcribe_error}")
             with processing_lock:
                 job_status[job_id] = {
                     'status': 'failed',
-                    'filename': original_filename,
+                    'filename': filename,
                     'error': f'Transcription failed: {str(transcribe_error)}'
                 }
             return
 
-        # Log memory after transcription
         memory = psutil.virtual_memory()
         logger.info(f"Memory usage after transcription: {memory.used / 1024 / 1024:.1f}MB")
 
         with processing_lock:
-            job_status[job_id] = {'status': 'generating_captions', 'filename': original_filename}
+            job_status[job_id] = {'status': 'generating_captions', 'filename': filename}
         
-        # Generate SRT file
         srt_path = os.path.join(PROCESSED_FOLDER, f"{job_id}_captions.srt")
-        
-        # Create output video filename with subtitles
-        name, ext = os.path.splitext(original_filename)
+        name, ext = os.path.splitext(filename)
         output_video_filename = f"{job_id}_with_subtitles{ext}"
         output_video_path = os.path.join(PROCESSED_FOLDER, output_video_filename)
 
-        # Generate SRT file
-        try:
-            generate_srt(result["segments"], srt_path)
-            logger.info(f"SRT file generated: {srt_path}")
-        except Exception as srt_error:
-            logger.error(f"Failed to generate SRT for job {job_id}: {srt_error}")
-            with processing_lock:
-                job_status[job_id] = {
-                    'status': 'failed',
-                    'filename': original_filename,
-                    'error': f'Failed to generate SRT file: {str(srt_error)}'
-                }
-            return
+        generate_srt(result["segments"], srt_path)
         
         with processing_lock:
-            job_status[job_id] = {'status': 'embedding_subtitles', 'filename': original_filename}
+            job_status[job_id] = {'status': 'embedding_subtitles', 'filename': filename}
         
-        # Overlay subtitles on video
         try:
             overlay_subtitles(filepath, srt_path, output_video_path)
             
-            if os.path.exists(output_video_path) and os.path.getsize(output_video_path) > 0:
+            if os.path.exists(output_video_path):
                 logger.info(f"Video processing completed successfully for job {job_id}")
                 with processing_lock:
                     job_status[job_id] = {
                         'status': 'completed',
-                        'filename': original_filename,
+                        'filename': filename,
                         'download_url': f"/download/{output_video_filename}",
                         'srt_url': f"/download_srt/{job_id}_captions.srt"
                     }
                 
-                # Remove original upload file to save space AFTER successful processing
+                # Remove original upload file to save space
                 try:
                     os.remove(filepath)
                     logger.info(f"Removed original upload file: {filepath}")
                 except Exception as e:
                     logger.error(f"Could not remove upload file: {e}")
-                    
             else:
-                raise Exception("Output video file was not created or is empty")
-                
+                with processing_lock:
+                    job_status[job_id] = {
+                        'status': 'completed_srt_only',
+                        'filename': filename,
+                        'error': 'Output video file was not created, but SRT file is available',
+                        'srt_url': f"/download_srt/{job_id}_captions.srt"
+                    }
         except Exception as subtitle_error:
             logger.error(f"Failed to embed subtitles for job {job_id}: {str(subtitle_error)}")
             with processing_lock:
                 job_status[job_id] = {
                     'status': 'completed_srt_only',
-                    'filename': original_filename,
-                    'error': f'Failed to embed subtitles: {str(subtitle_error)}. SRT file is still available.',
+                    'filename': filename,
+                    'error': f'Failed to embed subtitles: {str(subtitle_error)}',
                     'srt_url': f"/download_srt/{job_id}_captions.srt"
                 }
-        
-        # Log final memory usage
-        memory = psutil.virtual_memory()
-        logger.info(f"Memory usage after processing complete: {memory.used / 1024 / 1024:.1f}MB")
         
         # Force garbage collection
         gc.collect()
@@ -357,41 +304,34 @@ def process_video_task(job_id, filepath, original_filename):
         with processing_lock:
             job_status[job_id] = {
                 'status': 'failed',
-                'filename': original_filename,
+                'filename': filename,
                 'error': str(e)
             }
 
 @app.route('/upload', methods=['POST'])
 def upload_video():
-    """Handle video file upload and start processing"""
+    """Upload video with enhanced validation"""
     if 'video' not in request.files:
         return jsonify({'error': 'No video file provided'}), 400
 
     video = request.files['video']
     if video.filename == '':
         return jsonify({'error': 'Empty filename'}), 400
-    
-    # Validate file type
-    if not allowed_file(video.filename):
-        return jsonify({
-            'error': f'Unsupported file type. Allowed formats: {", ".join(ALLOWED_EXTENSIONS)}'
-        }), 400
 
     # Check file size (limit to 100MB per file)
     if request.content_length and request.content_length > 100 * 1024 * 1024:
-        return jsonify({'error': 'File too large. Maximum size is 100MB per file.'}), 400
+        return jsonify({'error': 'File too large. Maximum size is 100MB.'}), 400
 
-    # Check available storage space
+    # Check storage space
     current_storage = get_directory_size(TEMP_BASE_DIR)
     estimated_size = request.content_length or 0
     
     if current_storage + estimated_size > TEMP_STORAGE_LIMIT:
-        # Try cleanup first
         cleanup_old_files()
         current_storage = get_directory_size(TEMP_BASE_DIR)
         
         if current_storage + estimated_size > TEMP_STORAGE_LIMIT:
-            return jsonify({'error': 'Temporary storage full. Please try again in a few minutes.'}), 507
+            return jsonify({'error': 'Server storage full. Please try again in a few minutes.'}), 507
 
     job_id = str(uuid.uuid4())
     filename = f"{job_id}_{video.filename}"
@@ -405,14 +345,11 @@ def upload_video():
             job_status[job_id] = {'status': 'uploaded', 'filename': video.filename}
         
         # Start processing in background thread
-        thread = threading.Thread(
-            target=process_video_task, 
-            args=(job_id, filepath, video.filename),
-            daemon=True
-        )
+        thread = threading.Thread(target=process_video_task, args=(job_id, filepath, video.filename))
+        thread.daemon = True
         thread.start()
 
-        logger.info(f"Upload successful for job {job_id}, file: {video.filename}")
+        logger.info(f"Upload successful for job {job_id}")
         return jsonify({'job_id': job_id}), 202
         
     except Exception as e:
@@ -421,25 +358,22 @@ def upload_video():
 
 @app.route('/status/<job_id>', methods=['GET'])
 def get_status(job_id):
-    """Get processing status for a job"""
+    """Get processing status with recovery capability"""
     with processing_lock:
         if job_id not in job_status:
             logger.warning(f"Job {job_id} not found in status dictionary")
             
-            # Check if files still exist even if status is missing
-            upload_file_pattern = os.path.join(UPLOAD_FOLDER, f"{job_id}_*")
-            processed_file_pattern = os.path.join(PROCESSED_FOLDER, f"{job_id}_*")
+            # Try to recover status from existing files
+            upload_pattern = os.path.join(UPLOAD_FOLDER, f"{job_id}_*")
+            processed_pattern = os.path.join(PROCESSED_FOLDER, f"{job_id}_*")
             
-            import glob
-            upload_files = glob.glob(upload_file_pattern)
-            processed_files = glob.glob(processed_file_pattern)
+            upload_files = glob.glob(upload_pattern)
+            processed_files = glob.glob(processed_pattern)
             
             if upload_files or processed_files:
-                # Files exist but status is missing - recreate basic status
-                logger.info(f"Recreating status for job {job_id} with existing files")
+                logger.info(f"Recovering status for job {job_id}")
                 
                 if processed_files:
-                    # Check if we have a completed video file
                     video_files = [f for f in processed_files if 'with_subtitles' in f]
                     srt_files = [f for f in processed_files if 'captions.srt' in f]
                     
@@ -458,122 +392,70 @@ def get_status(job_id):
                             'srt_url': f"/download_srt/{job_id}_captions.srt"
                         }
                 elif upload_files:
-                    # Still processing
                     job_status[job_id] = {
                         'status': 'processing',
                         'filename': 'recovered_file'
                     }
                 
-                # Update timestamp
                 file_timestamps[job_id] = datetime.now()
-                
                 status_info = job_status[job_id].copy()
                 return jsonify(status_info)
             
             return jsonify({'error': 'Job not found or expired'}), 404
         
-        status_info = job_status[job_id].copy()  # Create a copy to avoid race conditions
+        status_info = job_status[job_id].copy()
         logger.debug(f"Status check for job {job_id}: {status_info.get('status', 'unknown')}")
         return jsonify(status_info)
 
-@app.route('/file_exists/<filename>', methods=['GET'])
-def check_file_exists(filename):
-    """Check if a processed file still exists"""
-    path = os.path.join(app.config['PROCESSED_FOLDER'], filename)
-    exists = os.path.exists(path)
-    
-    if exists:
-        file_size = os.path.getsize(path)
-        return jsonify({
-            'exists': True,
-            'size_bytes': file_size,
-            'size_mb': round(file_size / 1024 / 1024, 2)
-        })
-    else:
-        return jsonify({'exists': False})
-
 @app.route('/download/<filename>', methods=['GET'])
 def download_file(filename):
-    """Download processed video file"""
+    """Download processed video with tracking"""
     path = os.path.join(app.config['PROCESSED_FOLDER'], filename)
     if not os.path.exists(path):
-        logger.warning(f"Download requested for non-existent file: {filename}")
         return jsonify({'error': 'File not found or expired'}), 404
     
-    # Extract job_id from filename
+    # Track download to prevent immediate cleanup
     job_id = filename.split('_')[0]
-    
-    # Track download timestamp to prevent immediate cleanup
     with processing_lock:
         download_timestamps[job_id] = datetime.now()
+        if job_id in job_status:
+            original_filename = job_status[job_id].get('filename', 'video')
+        else:
+            original_filename = 'video'
     
-    # Get original filename from job status
-    original_filename = "video"  # default fallback
-    with processing_lock:
-        if job_id in job_status and 'filename' in job_status[job_id]:
-            original_filename = job_status[job_id]['filename']
-    
-    # Generate CapVid filename with original name
+    # Generate CapVid filename
     original_name_without_ext = os.path.splitext(original_filename)[0]
     original_extension = filename.split('.')[-1]
     capvid_filename = f"CapVid-{original_name_without_ext}.{original_extension}"
     
-    logger.info(f"Serving download: {filename} as {capvid_filename} for job {job_id}")
+    logger.info(f"File downloaded: {filename} -> {capvid_filename}")
     
-    try:
-        response = send_from_directory(
-            app.config['PROCESSED_FOLDER'], 
-            filename, 
-            as_attachment=True,
-            download_name=capvid_filename
-        )
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        response.headers['Access-Control-Allow-Methods'] = 'GET'
-        return response
-    except Exception as e:
-        logger.error(f"Error serving download for {filename}: {e}")
-        return jsonify({'error': 'Failed to serve file'}), 500
+    response = send_from_directory(
+        app.config['PROCESSED_FOLDER'], 
+        filename, 
+        as_attachment=True,
+        download_name=capvid_filename
+    )
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 @app.route('/download_srt/<filename>', methods=['GET'])
 def download_srt(filename):
-    """Download SRT subtitle file"""
+    """Download SRT file with tracking"""
     path = os.path.join(app.config['PROCESSED_FOLDER'], filename)
     if not os.path.exists(path):
-        logger.warning(f"SRT download requested for non-existent file: {filename}")
         return jsonify({'error': 'SRT file not found or expired'}), 404
     
-    # Extract job_id from filename
+    # Track download
     job_id = filename.split('_')[0]
-    
-    # Track download timestamp to prevent immediate cleanup
     with processing_lock:
         download_timestamps[job_id] = datetime.now()
     
-    logger.info(f"Serving SRT download: {filename} for job {job_id}")
+    logger.info(f"SRT file downloaded: {filename}")
     
-    try:
-        response = send_from_directory(app.config['PROCESSED_FOLDER'], filename, as_attachment=True)
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        response.headers['Access-Control-Allow-Methods'] = 'GET'
-        return response
-    except Exception as e:
-        logger.error(f"Error serving SRT download for {filename}: {e}")
-        return jsonify({'error': 'Failed to serve SRT file'}), 500
-
-@app.route('/cleanup/<job_id>', methods=['POST'])
-def cleanup_job(job_id):
-    """Manual cleanup endpoint for specific job - only cleanup after completion"""
-    with processing_lock:
-        if job_id in job_status:
-            status = job_status[job_id].get('status')
-            if status not in ['completed', 'failed', 'completed_srt_only']:
-                return jsonify({'error': 'Cannot cleanup job that is still processing'}), 400
-    
-    cleanup_job_files(job_id)
-    logger.info(f"Manual cleanup performed for job {job_id}")
-    return jsonify({'message': f'Job {job_id} cleaned up successfully'}), 200
+    response = send_from_directory(app.config['PROCESSED_FOLDER'], filename, as_attachment=True)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 @app.route('/storage_info', methods=['GET'])
 def storage_info():
@@ -588,18 +470,13 @@ def storage_info():
         'limit_mb': round(TEMP_STORAGE_LIMIT / 1024 / 1024, 2),
         'usage_percentage': round((current_usage / TEMP_STORAGE_LIMIT) * 100, 2),
         'active_jobs': active_jobs,
-        'downloaded_jobs': downloaded_jobs,
-        'temp_directory': TEMP_BASE_DIR
+        'downloaded_jobs': downloaded_jobs
     })
 
 @app.route('/system_info', methods=['GET'])
 def system_info():
     """Get system and model information"""
-    # Get memory info
     memory = psutil.virtual_memory()
-    
-    # Check FFmpeg status
-    ffmpeg_status = check_ffmpeg_installation()
     
     return jsonify({
         'whisper_models': ["tiny", "base"],
@@ -608,42 +485,16 @@ def system_info():
         'memory_total_gb': round(memory.total / (1024**3), 1),
         'memory_available_gb': round(memory.available / (1024**3), 1),
         'memory_used_gb': round(memory.used / (1024**3), 1),
-        'ffmpeg_installed': ffmpeg_status,
-        'supported_formats': list(ALLOWED_EXTENSIONS),
         'features': [
             'Auto language detection',
             'Word-level timestamps',
             'Enhanced accuracy settings',
-            'Automatic cleanup',
-            'Temporary storage management',
-            'Adaptive model selection',
-            'Extended job retention (4 hours)',
-            'Download protection (1 hour after download)',
-            'Cross-platform subtitle embedding',
-            'File type validation'
+            'Conservative cleanup (6+ hours)',
+            'Status recovery capability',
+            'Download tracking',
+            'Adaptive model selection'
         ]
     })
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    try:
-        memory = psutil.virtual_memory()
-        storage_usage = get_directory_size(TEMP_BASE_DIR)
-        
-        return jsonify({
-            'status': 'healthy',
-            'timestamp': datetime.now().isoformat(),
-            'memory_available_gb': round(memory.available / (1024**3), 1),
-            'storage_usage_mb': round(storage_usage / 1024 / 1024, 2),
-            'temp_directory': TEMP_BASE_DIR,
-            'ffmpeg_available': check_ffmpeg_installation()
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e)
-        }), 500
 
 # Cleanup on app shutdown
 import atexit
@@ -653,31 +504,17 @@ def cleanup_on_exit():
     try:
         shutil.rmtree(TEMP_BASE_DIR)
         logger.info(f"Cleaned up temporary directory: {TEMP_BASE_DIR}")
-    except Exception as e:
-        logger.error(f"Failed to cleanup on exit: {e}")
+    except:
+        pass
 
 atexit.register(cleanup_on_exit)
-
-def startup_checks():
-    """Perform startup checks"""
-    logger.info("Performing startup checks...")
-    logger.info(f"Temporary storage directory: {TEMP_BASE_DIR}")
-    logger.info(f"Storage limit: {TEMP_STORAGE_LIMIT / 1024 / 1024:.1f}MB")
-    
-    if not check_ffmpeg_installation():
-        logger.warning("FFmpeg not found! Video processing will fail.")
-    else:
-        logger.info("FFmpeg is available")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     host = os.environ.get('HOST', '0.0.0.0')
     debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     
-    logger.info(f"Starting CapVid Backend on {host}:{port}")
-    logger.info(f"Debug mode: {debug}")
-    
-    # Perform startup checks
-    startup_checks()
+    logger.info(f"Temporary storage directory: {TEMP_BASE_DIR}")
+    logger.info(f"Storage limit: {TEMP_STORAGE_LIMIT / 1024 / 1024:.1f}MB")
     
     app.run(host=host, port=port, debug=debug)

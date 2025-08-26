@@ -146,7 +146,7 @@ function App() {
                           leading-relaxed px-4 lg:px-0"
                 style={{ fontFamily: 'Urbanist, sans-serif' }}
               >
-                AI based video captioning service
+                AI based captioning service for your videos
               </p>
             </div>
           </div>

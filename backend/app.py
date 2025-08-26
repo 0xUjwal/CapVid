@@ -12,7 +12,6 @@ import whisper
 import gc
 import psutil
 import logging
-import logging
 
 app = Flask(__name__)
 
@@ -28,8 +27,6 @@ CORS(app,
      origins=[
          "https://capvid.app",
          "https://www.capvid.app",
-         "http://localhost:3000",
-         "https://localhost:3000"
          "http://localhost:3000",
          "https://localhost:3000"
      ],
@@ -51,7 +48,6 @@ app.config['PROCESSED_FOLDER'] = PROCESSED_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
-# Thread-safe job management with longer retention
 # Thread-safe job management with longer retention
 job_status = {}
 file_timestamps = {}
@@ -80,7 +76,6 @@ def get_directory_size(directory):
                 if os.path.exists(filepath):
                     total_size += os.path.getsize(filepath)
     except Exception as e:
-        logger.error(f"Error calculating directory size: {e}")
         logger.error(f"Error calculating directory size: {e}")
     return total_size
 
@@ -123,13 +118,7 @@ def cleanup_old_files():
                     files_to_remove.append(job_id)
                     # Check if we're under limit after adding this file
                     if get_directory_size(TEMP_BASE_DIR) < TEMP_STORAGE_LIMIT * 0.8:
-                    # Check if we're under limit after adding this file
-                    if get_directory_size(TEMP_BASE_DIR) < TEMP_STORAGE_LIMIT * 0.8:
                         break
-    
-    # Remove identified files
-    for job_id in files_to_remove:
-        cleanup_job_files(job_id)
     
     # Remove identified files
     for job_id in files_to_remove:
@@ -141,7 +130,6 @@ def cleanup_job_files(job_id):
         with processing_lock:
             # Remove from status tracking
             if job_id in job_status:
-                logger.info(f"Removing job {job_id} from status tracking")
                 logger.info(f"Removing job {job_id} from status tracking")
                 del job_status[job_id]
             if job_id in file_timestamps:
@@ -160,21 +148,10 @@ def cleanup_job_files(job_id):
                             logger.info(f"Removed file: {filepath}")
                         except Exception as e:
                             logger.error(f"Failed to remove {filepath}: {e}")
-            if os.path.exists(folder):
-                for filename in os.listdir(folder):
-                    if filename.startswith(job_id):
-                        filepath = os.path.join(folder, filename)
-                        try:
-                            os.remove(filepath)
-                            logger.info(f"Removed file: {filepath}")
-                        except Exception as e:
-                            logger.error(f"Failed to remove {filepath}: {e}")
     except Exception as e:
-        logger.error(f"Error cleaning up job {job_id}: {e}")
         logger.error(f"Error cleaning up job {job_id}: {e}")
 
 def periodic_cleanup():
-    """Run cleanup every 30 minutes"""
     """Run cleanup every 30 minutes"""
     while True:
         time.sleep(1800)  # 30 minutes
@@ -187,8 +164,6 @@ def periodic_cleanup():
 cleanup_thread = threading.Thread(target=periodic_cleanup, daemon=True)
 cleanup_thread.start()
 
-def load_whisper_model():
-    """Load Whisper model with memory optimization"""
 def load_whisper_model():
     """Load Whisper model with memory optimization"""
     global whisper_model
@@ -218,22 +193,9 @@ def load_whisper_model():
             whisper_model = whisper.load_model(model_name)
             logger.info(f"Successfully loaded Whisper model: {model_name}")
             
-            logger.info(f"Successfully loaded Whisper model: {model_name}")
-            
             return whisper_model
             
-            
         except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            # Fallback to tiny model
-            try:
-                logger.info("Falling back to tiny model")
-                whisper_model = whisper.load_model("tiny")
-                logger.info("Successfully loaded tiny model as fallback")
-                return whisper_model
-            except Exception as fallback_error:
-                logger.error(f"Failed to load fallback model: {fallback_error}")
-                raise
             logger.error(f"Failed to load model: {e}")
             # Fallback to tiny model
             try:
@@ -343,7 +305,6 @@ def process_video_task(job_id, filepath, original_filename):
                 try:
                     os.remove(filepath)
                     logger.info(f"Removed original upload file: {filepath}")
-                    logger.info(f"Removed original upload file: {filepath}")
                 except Exception as e:
                     logger.error(f"Could not remove upload file: {e}")
                     
@@ -351,7 +312,6 @@ def process_video_task(job_id, filepath, original_filename):
                 raise Exception("Output video file was not created or is empty")
                 
         except Exception as subtitle_error:
-            logger.error(f"Failed to embed subtitles for job {job_id}: {str(subtitle_error)}")
             logger.error(f"Failed to embed subtitles for job {job_id}: {str(subtitle_error)}")
             with processing_lock:
                 job_status[job_id] = {
@@ -366,15 +326,9 @@ def process_video_task(job_id, filepath, original_filename):
         logger.info(f"Memory usage after processing complete: {memory.used / 1024 / 1024:.1f}MB")
         
         # Force garbage collection
-        # Log final memory usage
-        memory = psutil.virtual_memory()
-        logger.info(f"Memory usage after processing complete: {memory.used / 1024 / 1024:.1f}MB")
-        
-        # Force garbage collection
         gc.collect()
             
     except Exception as e:
-        logger.error(f"Video processing failed for job {job_id}: {str(e)}")
         logger.error(f"Video processing failed for job {job_id}: {str(e)}")
         with processing_lock:
             job_status[job_id] = {
@@ -402,9 +356,6 @@ def upload_video():
     # Check file size (limit to 100MB per file)
     if request.content_length and request.content_length > 100 * 1024 * 1024:
         return jsonify({'error': 'File too large. Maximum size is 100MB per file.'}), 400
-    # Check file size (limit to 100MB per file)
-    if request.content_length and request.content_length > 100 * 1024 * 1024:
-        return jsonify({'error': 'File too large. Maximum size is 100MB per file.'}), 400
 
     # Check available storage space
     current_storage = get_directory_size(TEMP_BASE_DIR)
@@ -417,23 +368,7 @@ def upload_video():
         
         if current_storage + estimated_size > TEMP_STORAGE_LIMIT:
             return jsonify({'error': 'Temporary storage full. Please try again in a few minutes.'}), 507
-    # Check available storage space
-    current_storage = get_directory_size(TEMP_BASE_DIR)
-    estimated_size = request.content_length or 0
-    
-    if current_storage + estimated_size > TEMP_STORAGE_LIMIT:
-        # Try cleanup first
-        cleanup_old_files()
-        current_storage = get_directory_size(TEMP_BASE_DIR)
-        
-        if current_storage + estimated_size > TEMP_STORAGE_LIMIT:
-            return jsonify({'error': 'Temporary storage full. Please try again in a few minutes.'}), 507
 
-    job_id = str(uuid.uuid4())
-    filename = f"{job_id}_{video.filename}"
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
-    try:
     job_id = str(uuid.uuid4())
     filename = f"{job_id}_{video.filename}"
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -458,7 +393,6 @@ def upload_video():
         
     except Exception as e:
         logger.error(f"Upload failed: {e}")
-        logger.error(f"Upload failed: {e}")
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 @app.route('/status/<job_id>', methods=['GET'])
@@ -466,7 +400,6 @@ def get_status(job_id):
     """Get processing status for a job"""
     with processing_lock:
         if job_id not in job_status:
-            logger.warning(f"Job {job_id} not found in status dictionary")
             logger.warning(f"Job {job_id} not found in status dictionary")
             return jsonify({'error': 'Job not found or expired'}), 404
         
@@ -562,13 +495,6 @@ def download_srt(filename):
 
 @app.route('/cleanup/<job_id>', methods=['POST'])
 def cleanup_job(job_id):
-    """Manual cleanup endpoint for specific job - only cleanup after completion"""
-    with processing_lock:
-        if job_id in job_status:
-            status = job_status[job_id].get('status')
-            if status not in ['completed', 'failed', 'completed_srt_only']:
-                return jsonify({'error': 'Cannot cleanup job that is still processing'}), 400
-    
     """Manual cleanup endpoint for specific job - only cleanup after completion"""
     with processing_lock:
         if job_id in job_status:

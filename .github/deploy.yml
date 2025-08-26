@@ -1,0 +1,106 @@
+name: Deploy CapVid to DigitalOcean
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/**'
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    name: Deploy Backend to DigitalOcean
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy Backend to DigitalOcean
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: root
+        key: ${{ secrets.DROPLET_SSH_KEY }}
+        port: 22
+        timeout: 300s
+        command_timeout: 10m
+        script: |
+          echo "🚀 Starting CapVid Backend Deployment..."
+          
+          # Navigate to project directory
+          cd /var/www/CapVid
+          
+          # Pull latest changes
+          echo "📥 Pulling latest changes from GitHub..."
+          git fetch origin
+          git reset --hard origin/main
+          git pull origin main
+          
+          # Navigate to backend
+          cd backend
+          
+          # Activate virtual environment and install dependencies
+          echo "📦 Installing Python dependencies..."
+          source venv/bin/activate
+          pip install -r requirements.txt
+          
+          # Set proper permissions
+          echo "🔐 Setting permissions..."
+          sudo chown -R www-data:www-data /var/www/CapVid
+          sudo chmod -R 755 /var/www/CapVid
+          
+          # Restart services
+          echo "🔄 Restarting services..."
+          sudo systemctl restart capvid
+          sudo systemctl restart nginx
+          
+          # Check service status
+          echo "✅ Checking service status..."
+          sudo systemctl is-active capvid || echo "❌ CapVid service failed"
+          sudo systemctl is-active nginx || echo "❌ Nginx service failed"
+          
+          # Test API endpoint
+          echo "🧪 Testing API..."
+          sleep 5
+          curl -f https://api.capvid.app/ || echo "❌ API test failed"
+          
+          echo "🎉 Deployment completed!"
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    name: Deploy Frontend to Vercel
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+      env:
+        REACT_APP_API_BASE_URL: https://api.capvid.app
+    
+    - name: Deploy to Vercel
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        working-directory: ./frontend
+        vercel-args: '--prod'

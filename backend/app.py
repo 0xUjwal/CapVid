@@ -207,6 +207,11 @@ def load_whisper_model():
                 logger.error(f"Failed to load fallback model: {fallback_error}")
                 raise
 
+@app.route('/')
+def home():
+    """Root endpoint to confirm API is running"""
+    return jsonify({"message": "🚀 CapVid API is running!"})
+
 def process_video_task(job_id, filepath, original_filename):
     """Process video file: transcribe and add subtitles"""
     try:

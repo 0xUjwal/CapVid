@@ -179,15 +179,12 @@ def load_whisper_model():
             
             logger.info(f"Available memory: {available_gb:.1f}GB")
             
-            if available_gb < 0.5:  # Less than 500MB available
+            if available_gb < 1.0:  # Less than 1GB available
                 model_name = "tiny"
                 logger.info("Using tiny model due to memory constraints")
-            elif available_gb < 1.0:  # Less than 1GB available
-                model_name = "base"
-                logger.info("Using base model due to memory constraints")
             else:
-                model_name = "small"
-                logger.info("Using small model")
+                model_name = "base"
+                logger.info("Using base model")
             
             logger.info(f"Loading Whisper model: {model_name}")
             whisper_model = whisper.load_model(model_name)
@@ -538,9 +535,8 @@ def system_info():
     ffmpeg_status = check_ffmpeg_installation()
     
     return jsonify({
-        'whisper_models': ["tiny", "base", "small"],
-        'whisper_models': ["tiny", "base", "small"],
-        'current_model': 'adaptive (tiny/base/small based on memory)',
+        'whisper_models': ["tiny", "base"],
+        'current_model': 'adaptive (tiny/base based on memory)',
         'temp_storage_mb': round(TEMP_STORAGE_LIMIT / 1024 / 1024, 2),
         'memory_total_gb': round(memory.total / (1024**3), 1),
         'memory_available_gb': round(memory.available / (1024**3), 1),

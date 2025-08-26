@@ -28,46 +28,7 @@ jobs:
         timeout: 300s
         command_timeout: 10m
         script: |
-          echo "🚀 Starting CapVid Backend Deployment..."
-          
-          # Navigate to project directory
-          cd /var/www/CapVid
-          
-          # Pull latest changes
-          echo "📥 Pulling latest changes from GitHub..."
-          git fetch origin
-          git reset --hard origin/main
-          git pull origin main
-          
-          # Navigate to backend
-          cd backend
-          
-          # Activate virtual environment and install dependencies
-          echo "📦 Installing Python dependencies..."
-          source venv/bin/activate
-          pip install -r requirements.txt
-          
-          # Set proper permissions
-          echo "🔐 Setting permissions..."
-          sudo chown -R www-data:www-data /var/www/CapVid
-          sudo chmod -R 755 /var/www/CapVid
-          
-          # Restart services
-          echo "🔄 Restarting services..."
-          sudo systemctl restart capvid
-          sudo systemctl restart nginx
-          
-          # Check service status
-          echo "✅ Checking service status..."
-          sudo systemctl is-active capvid || echo "❌ CapVid service failed"
-          sudo systemctl is-active nginx || echo "❌ Nginx service failed"
-          
-          # Test API endpoint
-          echo "🧪 Testing API..."
-          sleep 5
-          curl -f https://api.capvid.app/ || echo "❌ API test failed"
-          
-          echo "🎉 Deployment completed!"
+          /var/www/deploy.sh
 
   deploy-frontend:
     runs-on: ubuntu-latest

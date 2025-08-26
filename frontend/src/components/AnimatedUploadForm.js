@@ -10,11 +10,43 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
   const [videoPreview, setVideoPreview] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Production API URL configuration
+  // Smart API URL configuration for development and production
   const API_BASE_URL = useMemo(() => {
-    const url = process.env.REACT_APP_API_BASE_URL || 'https://api.capvid.app';
-    console.log('API Base URL:', url);
-    return url;
+    // Check if we're in development mode
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' ||
+                       window.location.hostname === '0.0.0.0';
+    
+    // Priority order for API URL selection:
+    // 1. Environment variable (explicit override)
+    // 2. Development mode detection
+    // 3. Localhost detection
+    // 4. Production default
+    
+    let apiUrl;
+    
+    if (process.env.REACT_APP_API_BASE_URL) {
+      // Use explicitly set environment variable
+      apiUrl = process.env.REACT_APP_API_BASE_URL;
+    } else if (isDevelopment || isLocalhost) {
+      // Development mode or localhost - use local backend
+      apiUrl = 'http://localhost:5001';
+    } else {
+      // Production mode - use production API
+      apiUrl = 'https://api.capvid.app';
+    }
+    
+    console.log('🌐 Environment Detection:', {
+      NODE_ENV: process.env.NODE_ENV,
+      hostname: window.location.hostname,
+      isDevelopment,
+      isLocalhost,
+      envVar: process.env.REACT_APP_API_BASE_URL,
+      selectedURL: apiUrl
+    });
+    
+    return apiUrl;
   }, []);
 
   // File validation constants
@@ -29,6 +61,36 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
     maxSize: 250 * 1024 * 1024, // 250MB
     allowedExtensions: ['MP4', 'MOV', 'AVI', 'MKV', 'WEBM']
   }), []);
+
+  // Test API connectivity on component mount
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        console.log('🔄 Testing API connection to:', API_BASE_URL);
+        const response = await fetch(`${API_BASE_URL}/storage_info`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000) // 5 second timeout
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ API connected successfully:', data);
+        } else {
+          console.warn('⚠️ API responded but with error:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ API connection failed:', error.message);
+        
+        // If production API fails and we're not explicitly in development,
+        // suggest alternative
+        if (API_BASE_URL.includes('api.capvid.app')) {
+          console.log('💡 Tip: If running locally, set REACT_APP_API_BASE_URL=http://localhost:5001');
+        }
+      }
+    };
+
+    testConnection();
+  }, [API_BASE_URL]);
 
   // Cleanup video preview on unmount
   useEffect(() => {
@@ -129,7 +191,7 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
     formData.append('filename', sanitizedFileName);
 
     const uploadUrl = `${API_BASE_URL}/upload`;
-    console.log('Uploading to:', uploadUrl);
+    console.log('📤 Uploading to:', uploadUrl);
 
     try {
       setUploading(true);
@@ -159,15 +221,16 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
       if (!response.ok) {
         let errorText;
         try {
-          errorText = await response.text();
-        } catch (e) {
-          errorText = `HTTP ${response.status}`;
+          const errorData = await response.json();
+          errorText = errorData.error || `Upload failed: ${response.status} ${response.statusText}`;
+        } catch {
+          errorText = await response.text() || `Upload failed: ${response.status} ${response.statusText}`;
         }
-        throw new Error(`Upload failed: ${response.status} ${response.statusText}. ${errorText}`);
+        throw new Error(errorText);
       }
 
       const result = await response.json();
-      console.log('Upload successful:', result);
+      console.log('✅ Upload successful:', result);
       
       // Validate response structure
       if (!result.job_id) {
@@ -187,12 +250,12 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
       onSuccess(result.job_id, file);
       
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error('❌ Upload failed:', error);
       
       if (error.name === 'AbortError') {
         onError('Upload timed out. Please try again with a smaller file.');
       } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        onError('Network error. Please check your connection and try again.');
+        onError('Network error. Please check your connection and ensure the backend is running.');
       } else if (error.message.includes('507')) {
         onError('Server storage is full. Please try again later.');
       } else if (error.message.includes('413')) {
@@ -260,6 +323,15 @@ const AnimatedUploadForm = ({ onSuccess, onError }) => {
 
   return (
     <div className="w-full">
+      {/* Development Mode Indicator */}
+      {(process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost') && (
+        <div className="mb-4 p-3 bg-yellow-500 bg-opacity-20 border border-yellow-400 rounded-lg">
+          <p className="text-sm text-yellow-200 text-center">
+            🔧 Development Mode | API: {API_BASE_URL}
+          </p>
+        </div>
+      )}
+      
       <form onSubmit={handleSubmit} className="w-full">
         {/* Filename Input Field */}
         {file && (

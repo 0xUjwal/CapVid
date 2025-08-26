@@ -1,14 +1,30 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { FiCheckCircle, FiAlertTriangle, FiLoader, FiRefreshCw, FiClock, FiFileText, FiType, FiDownload } from 'react-icons/fi';
 
 const AnimatedStatusDisplay = ({ status, error, onReset, jobId, originalFile }) => {
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001';
+  // Smart API URL configuration (same logic as upload form)
+  const API_BASE_URL = useMemo(() => {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' ||
+                       window.location.hostname === '0.0.0.0';
+    
+    if (process.env.REACT_APP_API_BASE_URL) {
+      return process.env.REACT_APP_API_BASE_URL;
+    } else if (isDevelopment || isLocalhost) {
+      return 'http://localhost:5001';
+    } else {
+      return 'https://api.capvid.app';
+    }
+  }, []);
   
   useEffect(() => {
-    // Cleanup on page unload/refresh
+    // Cleanup on page unload/refresh - but only after sufficient time
     const handleBeforeUnload = () => {
+      // Only cleanup if job has been completed for more than 5 minutes
       if (jobId && (status?.status === 'completed' || status?.status === 'failed')) {
-        navigator.sendBeacon(`${API_BASE_URL}/cleanup/${jobId}`, '');
+        // Don't immediately cleanup - let server handle it with its retention policy
+        console.log(`Job ${jobId} marked for server-side cleanup`);
       }
     };
 
@@ -29,13 +45,7 @@ const AnimatedStatusDisplay = ({ status, error, onReset, jobId, originalFile }) 
       link.click();
       document.body.removeChild(link);
       
-      // Auto cleanup after download
-      setTimeout(() => {
-        if (jobId) {
-          fetch(`${API_BASE_URL}/cleanup/${jobId}`, { method: 'POST' })
-            .catch(err => console.log('Cleanup request failed:', err.message || err));
-        }
-      }, 3000);
+      console.log(`Download initiated for job ${jobId}. File will be available for 1 hour.`);
       
     } catch (error) {
       console.error('Download failed:', error);

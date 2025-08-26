@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Spline from '@splinetool/react-spline';
 import './App.css';
 import SVGAnimatedLogo from './components/SVGAnimatedLogo';
@@ -14,7 +14,21 @@ function App() {
   const [error, setError] = useState(null);
   const [originalFile, setOriginalFile] = useState(null);
 
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001';
+  // Smart API URL configuration (consistent with components)
+  const API_BASE_URL = useMemo(() => {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' ||
+                       window.location.hostname === '0.0.0.0';
+    
+    if (process.env.REACT_APP_API_BASE_URL) {
+      return process.env.REACT_APP_API_BASE_URL;
+    } else if (isDevelopment || isLocalhost) {
+      return 'http://localhost:5001';
+    } else {
+      return 'https://api.capvid.app';
+    }
+  }, []);
 
   const fetchStatus = useCallback(async (id) => {
     try {

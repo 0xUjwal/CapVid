@@ -90,21 +90,28 @@ def cleanup_old_files():
     
     files_to_remove = []
     
-    # Remove files older than 4 hours
-    for job_id, timestamp in list(file_timestamps.items()):
-        if timestamp < cutoff_time:
-            files_to_remove.append(job_id)
+    # Only remove files older than 4 hours AND that are completed/failed
+    with processing_lock:
+        for job_id, timestamp in list(file_timestamps.items()):
+            if timestamp < cutoff_time:
+                # Only remove if job is completed, failed, or doesn't exist in status
+                if job_id not in job_status or job_status[job_id].get('status') in ['completed', 'failed', 'completed_srt_only']:
+                    files_to_remove.append(job_id)
     
-    # Remove downloaded files older than 1 hour
-    for job_id, download_time in list(download_timestamps.items()):
-        if download_time < download_cutoff_time and job_id not in files_to_remove:
-            files_to_remove.append(job_id)
+    # Remove downloaded files older than 1 hour (but only if completed)
+    with processing_lock:
+        for job_id, download_time in list(download_timestamps.items()):
+            if download_time < download_cutoff_time and job_id not in files_to_remove:
+                # Only remove if job is completed
+                if job_id not in job_status or job_status[job_id].get('status') in ['completed', 'failed', 'completed_srt_only']:
+                    files_to_remove.append(job_id)
     
-    # If still over limit, remove oldest completed jobs first (but keep recently downloaded)
+    # If still over limit, remove oldest completed jobs first (but keep recently downloaded and active jobs)
     if total_size > TEMP_STORAGE_LIMIT:
         with processing_lock:
             completed_jobs = []
             for job_id, status_info in job_status.items():
+                # Only consider truly completed jobs for removal
                 if status_info.get('status') in ['completed', 'failed', 'completed_srt_only']:
                     if job_id in file_timestamps:
                         # Don't remove recently downloaded files unless absolutely necessary
@@ -121,8 +128,13 @@ def cleanup_old_files():
                         break
     
     # Remove identified files
+    removed_count = 0
     for job_id in files_to_remove:
         cleanup_job_files(job_id)
+        removed_count += 1
+    
+    if removed_count > 0:
+        logger.info(f"Cleanup completed: removed {removed_count} jobs")
 
 def cleanup_job_files(job_id):
     """Remove all files associated with a job"""
@@ -152,11 +164,21 @@ def cleanup_job_files(job_id):
         logger.error(f"Error cleaning up job {job_id}: {e}")
 
 def periodic_cleanup():
-    """Run cleanup every 30 minutes"""
+    """Run cleanup every 60 minutes (increased from 30)"""
     while True:
-        time.sleep(1800)  # 30 minutes
+        time.sleep(3600)  # 60 minutes - less frequent cleanup
         try:
-            cleanup_old_files()
+            # Only run cleanup if we're actually running low on space
+            current_usage = get_directory_size(TEMP_BASE_DIR)
+            usage_percentage = (current_usage / TEMP_STORAGE_LIMIT) * 100
+            
+            # Only cleanup if over 60% capacity OR if we have very old files
+            if usage_percentage > 60:
+                logger.info(f"Storage usage at {usage_percentage:.1f}%, running cleanup")
+                cleanup_old_files()
+            else:
+                logger.info(f"Storage usage at {usage_percentage:.1f}%, skipping cleanup")
+                
         except Exception as e:
             logger.error(f"Error in periodic cleanup: {e}")
 
@@ -403,6 +425,51 @@ def get_status(job_id):
     with processing_lock:
         if job_id not in job_status:
             logger.warning(f"Job {job_id} not found in status dictionary")
+            
+            # Check if files still exist even if status is missing
+            upload_file_pattern = os.path.join(UPLOAD_FOLDER, f"{job_id}_*")
+            processed_file_pattern = os.path.join(PROCESSED_FOLDER, f"{job_id}_*")
+            
+            import glob
+            upload_files = glob.glob(upload_file_pattern)
+            processed_files = glob.glob(processed_file_pattern)
+            
+            if upload_files or processed_files:
+                # Files exist but status is missing - recreate basic status
+                logger.info(f"Recreating status for job {job_id} with existing files")
+                
+                if processed_files:
+                    # Check if we have a completed video file
+                    video_files = [f for f in processed_files if 'with_subtitles' in f]
+                    srt_files = [f for f in processed_files if 'captions.srt' in f]
+                    
+                    if video_files:
+                        output_filename = os.path.basename(video_files[0])
+                        job_status[job_id] = {
+                            'status': 'completed',
+                            'filename': 'recovered_file',
+                            'download_url': f"/download/{output_filename}",
+                            'srt_url': f"/download_srt/{job_id}_captions.srt" if srt_files else None
+                        }
+                    elif srt_files:
+                        job_status[job_id] = {
+                            'status': 'completed_srt_only',
+                            'filename': 'recovered_file',
+                            'srt_url': f"/download_srt/{job_id}_captions.srt"
+                        }
+                elif upload_files:
+                    # Still processing
+                    job_status[job_id] = {
+                        'status': 'processing',
+                        'filename': 'recovered_file'
+                    }
+                
+                # Update timestamp
+                file_timestamps[job_id] = datetime.now()
+                
+                status_info = job_status[job_id].copy()
+                return jsonify(status_info)
+            
             return jsonify({'error': 'Job not found or expired'}), 404
         
         status_info = job_status[job_id].copy()  # Create a copy to avoid race conditions

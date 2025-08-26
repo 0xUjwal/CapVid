@@ -4,19 +4,21 @@
 
 CapVid is a modern, full-stack web application that uses OpenAI's Whisper AI to automatically generate and embed subtitles into your videos. With an intuitive interface, real-time processing updates, and smart storage management, it's the easiest way to make your content more accessible.
 
-![Preview](assets/CapVid.gif)
+[![Preview](assets/CapVid.gif)](https://www.capvid.app)
 
 
 ## ✨ Key Features
 
-- 🎯 **AI-Powered Transcription** - 83%+ accuracy with Whisper small model
+- 🎯 **AI-Powered Transcription** - High accuracy with adaptive Whisper models (tiny/base)
 - 🚀 **Real-time Processing** - Live status updates throughout the workflow
-- 📱 **Modern UI/UX** - Responsive design with smooth animations
-- 🔄 **Smart Storage** - Auto-cleanup with 250MB temporary storage limit
-- 🎵 **Multi-format Support** - MP4, AVI, MOV, MKV, and more
-- 🌍 **Multi-language** - Auto-detection for 50+ languages
-- ⚡ **Optimized Performance** - Memory-efficient processing
-- 🛡️ **Zero Maintenance** - Fully automated file lifecycle management
+- 📱 **Responsive Design** - Mobile-optimized layout with desktop compatibility
+- 🔄 **Smart Storage** - Auto-cleanup with 200MB temporary storage limit
+- 🎵 **Multi-format Support** - MP4, AVI, MOV, MKV, WebM, FLV, M4V, 3GP, WMV
+- 🌍 **Auto Language Detection** - Supports 50+ languages automatically
+- ⚡ **Memory Optimized** - Adaptive model selection based on available memory
+- 🛡️ **Extended Retention** - 6-hour file retention with download protection
+- 🎬 **Enhanced Subtitles** - Bottom-positioned, readable subtitles with optimal word chunking
+- 💾 **File Recovery** - Status recovery from existing files for reliability
 
 ## 🛠️ Tech Stack
 
@@ -27,59 +29,76 @@ CapVid is a modern, full-stack web application that uses OpenAI's Whisper AI to 
 - **@splinetool/react-spline 2.2.6** - 3D background integration
 
 ### Backend
-- **Flask 3.1.0** - Lightweight Python web framework
-- **OpenAI Whisper** - State-of-the-art speech recognition (small model)
-- **FFmpeg** - Video processing and subtitle embedding
-- **Python 3.8+** - Modern Python with asyncio support
+- **Flask 3.1.0** - Lightweight Python web framework with CORS support
+- **OpenAI Whisper** - Adaptive model selection (tiny/base based on memory)
+- **FFmpeg** - Video processing and subtitle embedding with mobile-optimized positioning
+- **psutil 6.1.0** - System monitoring and memory management
+- **Python 3.8+** - Modern Python with threading and file management
 
 ### Infrastructure
-- **Temporary Storage** - Smart 250MB limit with auto-cleanup
-- **Real-time Updates** - WebSocket-style status tracking
+- **Temporary Storage** - Smart 200MB limit with 6-hour retention
+- **Real-time Updates** - Thread-safe status tracking with file-based persistence
 - **Cross-platform** - Windows, macOS, Linux support
+- **Memory Adaptive** - Automatic model selection based on available RAM
+- **Auto-cleanup** - Conservative cleanup with download protection
 
 ## 🏗️ Project Structure
 
 ```
 CapVid/
-├── backend/                 # Flask backend API
-│   ├── app.py              # Main Flask application
-│   ├── helpers.py          # Video processing utilities
-│   └── requirements.txt    # Python dependencies
-├── frontend/               # React frontend
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   │   ├── AnimatedStatusDisplay.js
-│   │   │   ├── AnimatedUploadForm.js
-│   │   │   ├── ErrorBoundary.js
-│   │   │   ├── GitHubFooter.js
-│   │   │   └── SVGAnimatedLogo.js
-│   │   ├── App.js          # Main React application
-│   │   └── App.css         # Styles
-│   ├── public/
-│   │   ├── index.html      # HTML template
-│   │   └── logo.ico        # Favicon
-│   └── package.json        # Node.js dependencies
-├── .vscode/                # VS Code settings
-├── .gitignore              # Git ignore rules
-├── .gitattributes          # Git attributes
-└── README.md               # This file
+├── .github/                 # GitHub Actions workflows
+│   └── deploy.yml          # Auto-deployment configuration
+├── .vscode/                # VS Code settings and configurations
+├── assets/                 # Project assets and media
+│   ├── CapVid.gif         # Demo GIF
+│   └── CapVid.png         # Logo/screenshot
+├── backend/                # Flask backend API
+│   ├── __pycache__/       # Python cache files
+│   ├── processed/         # Temporary processed video storage
+│   ├── uploads/           # Temporary upload storage
+│   ├── venv/              # Python virtual environment
+│   ├── app.py             # Main Flask application with adaptive AI
+│   ├── helpers.py         # Video processing utilities
+│   ├── requirements.txt   # Python dependencies
+│   ├── test_downloads.py  # Backend testing utilities
+│   └── wsgi.py            # WSGI configuration for production
+├── frontend/              # React frontend application
+│   ├── .vercel/           # Vercel deployment configuration
+│   ├── build/             # Production build files
+│   ├── node_modules/      # Node.js dependencies
+│   ├── public/            # Static assets
+│   │   ├── index.html     # HTML template
+│   │   └── logo.ico       # Favicon
+│   ├── src/               # React source code
+│   │   ├── components/    # React components
+│   │   │   ├── AnimatedStatusDisplay.js    # Real-time status display
+│   │   │   ├── AnimatedUploadForm.js       # Mobile-optimized upload form
+│   │   │   ├── ErrorBoundary.js            # Error handling component
+│   │   │   ├── GitHubFooter.js             # GitHub repository link
+│   │   │   └── SVGAnimatedLogo.js          # Animated CapVid logo
+│   │   ├── lib/           # Utility libraries
+│   │   │   └── utils.js   # Helper functions
+│   │   ├── App.css        # Application styles with responsive design
+│   │   ├── App.js         # Main React application with mobile layout
+│   │   ├── App.test.js    # Application tests
+│   │   ├── index.css      # Global styles
+│   │   ├── index.js       # React entry point
+│   │   ├── reportWebVitals.js  # Performance monitoring
+│   │   └── setupTests.js  # Test configuration
+│   ├── .env.local         # Local environment variables
+│   ├── .env.production    # Production environment variables
+│   ├── .gitignore         # Frontend-specific git ignore
+│   ├── .stylelintrc.json  # CSS linting configuration
+│   ├── package.json       # Node.js dependencies and scripts
+│   ├── package-lock.json  # Dependency lock file
+│   ├── postcss.config.js  # PostCSS configuration
+│   └── tailwind.config.js # Tailwind CSS configuration
+├── .gitattributes         # Git attributes configuration
+├── .gitignore             # Git ignore rules
+├── CONTRIBUTING.md        # Contribution guidelines
+├── README.md              # Project documentation (this file)
+└── restart-backend.sh     # Backend restart script
 ```
-
-## 🛠️ Technologies Used
-
-### Backend
-- **Flask 3.1.0**: Modern Python web framework
-- **OpenAI Whisper**: State-of-the-art AI model for audio transcription
-- **FFmpeg**: Video processing and subtitle embedding
-- **Flask-CORS**: Cross-origin resource sharing support
-- **PyTorch**: Deep learning framework for Whisper
-
-### Frontend
-- **React 18.2.0**: Modern JavaScript library for building user interfaces
-- **Tailwind CSS 3.4.17**: Utility-first CSS framework
-- **Anime.js**: Lightweight animation library
-- **React Icons**: Beautiful icon library
-- **Spline**: 3D background animations
 
 ## 🚀 Getting Started
 
@@ -175,50 +194,54 @@ The frontend will run on `http://localhost:3000`
 3. **Download**: Get your video with embedded subtitles (auto-downloaded as `CapVid-{originalname}.mp4`)
 
 ### Supported Formats
-- **Input**: MP4, AVI, MOV, MKV, and most common video formats
+- **Input**: MP4, AVI, MOV, MKV, WebM, FLV, M4V, 3GP, WMV
 - **Output**: MP4 with embedded subtitles, SRT subtitle files
-- **File Limits**: 100MB per file, 250MB total storage
+- **File Limits**: 100MB per file, 200MB total storage
 
 ### Processing Steps
-1. **Audio Extraction**: Extract audio from uploaded video
-2. **AI Transcription**: OpenAI Whisper converts speech to text with 83%+ accuracy
-3. **Subtitle Generation**: Create properly timed SRT subtitle file
-4. **Video Processing**: Embed subtitles directly into the video
-5. **Auto-Cleanup**: Files automatically deleted after download or 1 hour
+1. **Upload & Validation**: Secure file upload with format validation
+2. **AI Transcription**: Adaptive Whisper model (tiny/base) converts speech to text
+3. **Subtitle Generation**: Create properly timed SRT with optimized word chunking (6 words max)
+4. **Video Processing**: Embed subtitles in bottom quarter with enhanced readability
+5. **Smart Cleanup**: Files retained for 6 hours with download protection
 
 ## 🎯 Key Features & Performance
 
-### AI Model Optimization
-- **Primary Model**: Whisper `small` (optimized for CPU usage)
-- **Fallback Model**: Whisper `base` (if memory constraints)
-- **Accuracy**: 83%+ transcription accuracy
-- **Language Support**: Auto-detection for multiple languages
-- **Word-Level Timing**: Precise subtitle synchronization
+### Adaptive AI Model System
+- **Primary Model**: Whisper `base` (balanced performance and accuracy)
+- **Fallback Model**: Whisper `tiny` (memory-constrained environments)
+- **Smart Selection**: Automatic model choice based on available memory (<1GB = tiny, ≥1GB = base)
+- **Language Support**: Auto-detection for 50+ languages
+- **Subtitle Optimization**: Max 6 words per subtitle for enhanced readability
 
 ### Smart Storage Management
-- **Temporary Storage**: 250MB maximum with auto-cleanup
-- **File Lifecycle**: 1-hour expiration, immediate cleanup after download
-- **Zero Maintenance**: Fully automated file management
-- **Memory Optimization**: Original uploads deleted after processing
+- **Temporary Storage**: 200MB maximum with conservative cleanup
+- **File Lifecycle**: 6-hour retention with 2-hour download protection
+- **Status Recovery**: File-based job tracking for multi-worker reliability
+- **Memory Optimization**: Original uploads deleted after successful processing
+- **Auto-cleanup**: Runs every 2 hours, only when storage >80% capacity
 
-### Enhanced Processing
-- **Real-time Updates**: Live status tracking through all processing stages
-- **Error Handling**: Graceful fallbacks and detailed error messages
-- **Background Processing**: Non-blocking video processing
-- **Auto-Download**: Files cleaned up automatically after download
+### Enhanced User Experience
+- **Mobile-First Design**: Responsive layout optimized for mobile devices
+- **Real-time Updates**: Thread-safe status tracking with persistent storage
+- **Subtitle Positioning**: Bottom-quarter placement with optimal font sizing
+- **Error Recovery**: Graceful fallbacks and detailed error messages
+- **Background Processing**: Non-blocking video processing with progress tracking
 
 ## 🔧 API Endpoints
 
 ### Core Processing
-- `POST /upload` - Upload video file for processing
-- `GET /status/<job_id>` - Get real-time processing status
+- `GET /` - API health check and status confirmation
+- `POST /upload` - Upload video file for processing (100MB max)
+- `GET /status/<job_id>` - Get real-time processing status with recovery
 - `GET /download/<filename>` - Download processed video with subtitles
 - `GET /download_srt/<filename>` - Download SRT subtitle file
-- `POST /cleanup/<job_id>` - Manual cleanup for specific jobs
+- `GET /file_exists/<filename>` - Check if processed file still exists
 
-### System Monitoring
-- `GET /storage_info` - Real-time storage usage and limits
-- `GET /system_info` - Whisper model info and system capabilities
+### System Monitoring & Management
+- `GET /storage_info` - Real-time storage usage, limits, and active jobs
+- `GET /system_info` - Whisper model info, memory stats, and capabilities
+- `GET /health` - Comprehensive health check with system metrics
 
 ## ⚙️ Environment Variables
 
@@ -229,192 +252,17 @@ The frontend will run on `http://localhost:3000`
 - `FLASK_DEBUG`: Enable/disable debug mode (default: False)
 
 ### Frontend Configuration
-- `REACT_APP_API_BASE_URL`: Backend API URL (default: http://localhost:5001)
+- `REACT_APP_API_BASE_URL`: Backend API URL (auto-detects localhost in development)
+- `NODE_ENV`: React environment mode (development/production)
 
-## 🚀 Production Deployment
+## 🚀 Deployment
 
-### System Requirements
-- **Python 3.8+** with pip
-- **Node.js 16+** with npm
-- **FFmpeg** installed and accessible
-- **Memory**: 2GB+ RAM recommended for video processing
-- **Storage**: Temporary space for 250MB processing buffer
+### Production Deployment
+- **Frontend**: Deployed on Vercel with environment-based API detection
+- **Backend**: Flask application with Gunicorn and Nginx
+- **Auto-deployment**: GitHub Actions workflow for continuous deployment
+- **Domain**: https://capvid.app (frontend) and https://api.capvid.app (backend)
 
-### Production Considerations
+⭐ **Star this repository if you found it helpful!**
 
-1. **Storage Management**
-   ```bash
-   # Temporary storage with 250MB limit
-   # Auto-cleanup every 10 minutes
-   # Files expire after 1 hour
-   ```
-
-2. **Memory Optimization**
-   ```bash
-   # Whisper small model: ~244MB
-   # Processing buffer: ~250MB
-   # Total recommended: 2GB+ RAM
-   ```
-
-3. **Security Settings**
-   - Use HTTPS in production
-   - Configure proper CORS settings
-   - File upload limits enforced (100MB per file)
-   - Automatic cleanup prevents storage attacks
-
-### Manual Production Setup
-
-1. **Backend Setup:**
-   ```bash
-   cd backend
-   
-   # Create production environment
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   
-   # Install dependencies
-   pip install -r requirements.txt
-   
-   # Set environment variables
-   export FLASK_ENV=production
-   export HOST=0.0.0.0
-   export PORT=5001
-   
-   # Start server
-   python app.py
-   ```
-
-2. **Frontend Setup:**
-   ```bash
-   cd frontend
-   
-   # Install dependencies
-   npm install
-   
-   # Build for production
-   npm run build
-   
-   # Serve with static file server
-   npx serve -s build -l 80
-   ```
-
-## 📊 Performance Metrics
-
-| Metric | Specification |
-|--------|---------------|
-| Transcription Accuracy | 83%+ (Whisper small model) |
-| Max File Size | 100MB per upload |
-| Total Storage Limit | 250MB with auto-cleanup |
-| File Retention | 1 hour maximum |
-| Processing Time | ~1-3 minutes per minute of video |
-| Supported Languages | Auto-detection, 50+ languages |
-| Memory Usage | Optimized for 2GB+ systems |
-
-## 🛠️ Technical Implementation
-
-### Enhanced Whisper Integration
-```python
-# Optimized transcription settings
-result = model.transcribe(
-    filepath,
-    language=None,              # Auto-detect language
-    task="transcribe",          # Transcribe vs translate
-    word_timestamps=True,       # Word-level timing
-    temperature=0.0,            # Deterministic results
-    compression_ratio_threshold=2.4,
-    logprob_threshold=-1.0,
-    no_speech_threshold=0.6
-)
-```
-
-### Smart Storage Management
-```python
-# Temporary storage with limits
-TEMP_STORAGE_LIMIT = 250 * 1024 * 1024  # 250MB
-TEMP_BASE_DIR = tempfile.mkdtemp(prefix='capvid_')
-
-# Multiple cleanup mechanisms
-- Periodic cleanup (every 10 minutes)
-- Post-download cleanup (2 seconds delay)
-- Age-based cleanup (1 hour expiration)
-- Browser event cleanup (page unload)
-```
-
-## 🏥 Health Monitoring
-
-### Storage Monitoring
-```bash
-# Check current storage usage
-curl http://localhost:5001/storage_info
-
-# Response includes:
-{
-  "current_usage_mb": 45.2,
-  "limit_mb": 250.0,
-  "usage_percentage": 18.08,
-  "active_jobs": 3
-}
-```
-
-### System Information
-```bash
-# Get system capabilities
-curl http://localhost:5001/system_info
-
-# Includes model info, CUDA availability, features
-```
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **FFmpeg Not Found**
-   
-   **Windows (CMD Method):**
-   ```cmd
-   # Open CMD as Administrator, then run:
-   cd C:\
-   curl -L -o ffmpeg.zip https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip
-   mkdir C:\ffmpeg
-   tar -xf ffmpeg.zip -C C:\ffmpeg --strip-components=1
-   setx /M PATH "%PATH%;C:\ffmpeg\bin"
-   # Restart terminal and verify: ffmpeg -version
-   ```
-   
-   **macOS/Linux:**
-   ```bash
-   # macOS: brew install ffmpeg
-   # Ubuntu/Debian: sudo apt install ffmpeg
-   # CentOS/RHEL: sudo yum install ffmpeg
-   ```
-
-2. **Memory Issues**
-   ```bash
-   # Increase available memory or use base model fallback
-   # The system automatically falls back to base model if small fails
-   ```
-
-3. **Storage Full**
-   ```bash
-   # Storage automatically managed with 250MB limit
-   # Oldest files cleaned up when limit reached
-   ```
-
-## 🎉 What's New
-
-### Recent Improvements
-- ✅ **Optimized AI Model**: Switched to Whisper `small` for better accuracy (83%+)
-- ✅ **Smart Storage**: 250MB temporary storage with automatic cleanup
-- ✅ **Enhanced UX**: Real-time progress tracking and status updates
-- ✅ **Memory Optimization**: Reduced memory footprint and better error handling
-- ✅ **Auto-Download**: Files automatically named as `CapVid-{originalname}.mp4`
-- ✅ **Zero Maintenance**: Fully automated file lifecycle management
-- `GET /download_srt/<filename>` - Download SRT subtitle file
-- `POST /cleanup` - Clean up temporary files
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+>Made with ❤️ by Ujwal

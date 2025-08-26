@@ -94,12 +94,12 @@ def overlay_subtitles(input_path, srt_path, output_path):
             # Unix: Escape single quotes in path
             srt_filter_path = srt_path.replace("'", "'\\''")
         
-        # Build FFmpeg command with optimized settings
+        # Build FFmpeg command with optimized settings and better subtitle positioning
         command = [
             'ffmpeg',
             '-y',  # Overwrite output file without asking
             '-i', input_path,  # Input video
-            '-vf', f"subtitles='{srt_filter_path}':force_style='FontSize=24,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=25,FontName=Arial'",
+            '-vf', f"subtitles='{srt_filter_path}':force_style='FontSize=15,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=60,MarginL=20,MarginR=20,Alignment=2,FontName=Arial Bold,Bold=1'",
             '-c:a', 'copy',  # Copy audio stream without re-encoding
             '-c:v', 'libx264',  # Use H.264 video codec
             '-preset', 'medium',  # Balance between speed and compression

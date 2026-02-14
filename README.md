@@ -12,7 +12,7 @@ CapVid is a modern, full-stack web application that uses OpenAI's Whisper AI to 
 - 🎯 **AI-Powered Transcription** - High accuracy with adaptive Whisper models (tiny/base)
 - 🚀 **Real-time Processing** - Live status updates throughout the workflow
 - 📱 **Responsive Design** - Mobile-optimized layout with desktop compatibility
-- 🔄 **Smart Storage** - Auto-cleanup with 200MB temporary storage limit
+- 🔄 **Smart Storage** - Auto-cleanup with 250MB temporary storage limit
 - 🎵 **Multi-format Support** - MP4, AVI, MOV, MKV, WebM, FLV, M4V, 3GP, WMV
 - 🌍 **Auto Language Detection** - Supports 50+ languages automatically
 - ⚡ **Memory Optimized** - Adaptive model selection based on available memory
@@ -36,7 +36,7 @@ CapVid is a modern, full-stack web application that uses OpenAI's Whisper AI to 
 - **Python 3.8+** - Modern Python with threading and file management
 
 ### Infrastructure
-- **Temporary Storage** - Smart 200MB limit with 6-hour retention
+- **Temporary Storage** - Smart 250MB limit with 6-hour retention
 - **Real-time Updates** - Thread-safe status tracking with file-based persistence
 - **Cross-platform** - Windows, macOS, Linux support
 - **Memory Adaptive** - Automatic model selection based on available RAM
@@ -189,7 +189,7 @@ The frontend will run on `http://localhost:3000`
 
 ## 📱 Usage
 
-1. **Upload**: Drag and drop or select a video file (up to 100MB)
+1. **Upload**: Drag and drop or select a video file (up to 250MB)
 2. **Process**: Watch real-time status as AI transcribes your video
 3. **Download**: Get your video with embedded subtitles (auto-downloaded as `CapVid-{originalname}.mp4`)
 

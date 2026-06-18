@@ -2,7 +2,7 @@
 
 **Transform your videos with AI-generated subtitles in minutes!**
 
-CapVid is a modern, full-stack web application that uses OpenAI's Whisper AI to automatically generate and embed subtitles into your videos. With an intuitive interface, real-time processing updates, and smart storage management, it's the easiest way to make your content more accessible.
+CapVid is a modern, full-stack web application that uses OpenAI's Whisper AI to automatically generate and embed subtitles into your videos. With an intuitive interface, real-time processing updates, and smart storage management, it's the easiest way to to make your content more accessible.
 
 [![Preview](assets/CapVid.gif)](https://www.capvid.app)
 
